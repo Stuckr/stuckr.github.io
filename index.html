@@ -277,11 +277,29 @@
   /* Master Controls */
   .master-controls {
     display: grid;
-    grid-template-columns: 2fr 1fr;
+    grid-template-columns: 2fr 1fr auto;
     gap: 6px;
     padding: 6px 10px;
     background: var(--app);
     border-bottom: 1px solid var(--line);
+  }
+
+  .summary-toggle {
+    min-height: 48px;
+    padding: 10px 12px;
+    background: var(--surface);
+    color: var(--ink);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    box-shadow: var(--shadow);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: .4px;
+    white-space: nowrap;
+  }
+
+  .summary-toggle:active {
+    transform: translateY(1px);
   }
 
   .clock-toggle, .undo-btn {
@@ -319,6 +337,10 @@
     border-bottom: 1px solid var(--line);
     max-height: 30dvh;
     overflow-y: auto;
+  }
+
+  .summary-strip.collapsed {
+    display: none;
   }
 
   .mini-table {
@@ -790,6 +812,8 @@
     .team-score-box, .clock-box { padding: 4px; }
     .score-num { font-size: 34px; }
     .game-clock { font-size: 26px; }
+    .master-controls { grid-template-columns: 1.4fr 1fr auto; gap: 4px; padding: 6px 8px; }
+    .summary-toggle { padding: 6px 8px; font-size: 10px; }
     .wing { padding: 6px; }
     .event-btn { min-height: 70px; font-size: 12px; }
     .event-btn.goal { font-size: 14px; }
@@ -840,6 +864,7 @@
   <div class="master-controls">
     <button class="clock-toggle" id="clockToggleBtn" onclick="toggleClock()">START CLOCK</button>
     <button class="undo-btn" onclick="undoLast()">UNDO LAST</button>
+    <button class="summary-toggle" id="summaryToggleBtn" onclick="toggleSummary()" aria-expanded="true" title="Hide team summary">SUMMARY &#9662;</button>
   </div>
 
   <div class="summary-strip">
@@ -1047,13 +1072,14 @@
     { id: "turnover", label: "Turnover" },
     { id: "causedTO", label: "Caused TO" },
     { id: "penalty", label: "Penalty" },
+    { id: "fps", label: "Free Position Shot (FPS)" },
     { id: "clearGood", label: "Clear Good" },
     { id: "clearBad", label: "Clear Bad" },
     { id: "faceoff", label: "Faceoff / Draw" }
   ];
 
   const CORE_EVENTS = ["goal","shotSave","shotWide","groundball","turnover","penalty"];
-  const BUTTON_ORDER = ["goal","shotSave","shotWide","groundball","turnover","penalty","causedTO","clearGood","clearBad","faceoff"];
+  const BUTTON_ORDER = ["goal","shotSave","shotWide","groundball","turnover","penalty","fps","causedTO","clearGood","clearBad","faceoff"];
 
   const FORMAT_DEFAULTS = {
     sixes: {
@@ -1075,7 +1101,7 @@
       otLen: 4,
       shotClock: 80,
       secondAssist: false,
-      events: ["goal", "shotSave", "shotWide", "groundball", "turnover", "causedTO", "penalty", "clearGood", "clearBad", "faceoff"]
+      events: ["goal", "shotSave", "shotWide", "groundball", "turnover", "penalty", "fps", "causedTO", "clearGood", "clearBad", "faceoff"]
     }
   };
 
@@ -2024,6 +2050,19 @@
       return;
     }
 
+    if (f.step === "fpsResult") {
+      box.innerHTML = `
+        <div class="overlay-head"><span>FPS Result &mdash; #${f.player}</span><button class="cancel-btn" onclick="closeFlow()">&#10005;</button></div>
+        <div class="choice-stack">
+          <button class="choice-btn" onclick="finishFps('goal')">Goal</button>
+          <button class="choice-btn" onclick="finishFps('shotSave')">Shot Save</button>
+          <button class="choice-btn" onclick="finishFps('shotWide')">Shot Wide</button>
+          <button class="choice-btn" onclick="finishFps('other')">Other</button>
+        </div>
+      `;
+      return;
+    }
+
     if (f.step === "askAssist1" || f.step === "askAssist2") {
       const label = f.step === "askAssist1" ? "Was Goal Assisted?" : "Add Second Assist?";
       box.innerHTML = `
@@ -2129,6 +2168,11 @@
         renderFlowOverlay();
         return;
       }
+      if (f.type === "fps") {
+        f.step = "fpsResult";
+        renderFlowOverlay();
+        return;
+      }
       const labels = {
         shotSave: "Shot Saved",
         shotWide: "Shot Wide",
@@ -2221,6 +2265,53 @@
     closeFlow();
   }
 
+  function finishFps(result) {
+    const f = state.flow;
+    if (!f) return;
+    const opp = f.side === "home" ? "away" : "home";
+    const base = {
+      side: f.side,
+      fps: true,
+      player: f.player,
+      period: state.currentPeriod,
+      time: formatTime(state.gameSeconds)
+    };
+
+    if (result === "goal") {
+      if (f.side === "home") state.homeScore++;
+      else state.awayScore++;
+      recordLog({
+        ...base,
+        type: "goal",
+        oppGoalie: state.goalies[opp],
+        text: `FPS GOAL ${f.side.toUpperCase()} #${f.player}`
+      });
+      if (state.shotClockMax > 0) state.shotSeconds = state.shotClockMax;
+      renderClocks();
+    } else if (result === "shotSave") {
+      recordLog({
+        ...base,
+        type: "shotSave",
+        goalieSide: opp,
+        goalie: state.goalies[opp],
+        text: `FPS ${f.side.toUpperCase()} #${f.player} Shot Saved (${opp.toUpperCase()} Goalie: #${state.goalies[opp]})`
+      });
+    } else if (result === "shotWide") {
+      recordLog({
+        ...base,
+        type: "shotWide",
+        text: `FPS ${f.side.toUpperCase()} #${f.player} Shot Wide`
+      });
+    } else {
+      recordLog({
+        ...base,
+        type: "fpsOther",
+        text: `FPS ${f.side.toUpperCase()} #${f.player} Other`
+      });
+    }
+    closeFlow();
+  }
+
   function pickCard(card) {
     state.flow.card = card;
     state.flow.step = "penOffense";
@@ -2293,6 +2384,16 @@
       state.goalies[last.side] = last.previous;
     }
     renderAll();
+  }
+
+  function toggleSummary() {
+    const strip = document.querySelector(".summary-strip");
+    const btn = document.getElementById("summaryToggleBtn");
+    if (!strip || !btn) return;
+    const collapsed = strip.classList.toggle("collapsed");
+    btn.innerHTML = collapsed ? "SUMMARY &#9656;" : "SUMMARY &#9662;";
+    btn.setAttribute("aria-expanded", String(!collapsed));
+    btn.title = collapsed ? "Show team summary" : "Hide team summary";
   }
 
   function releasePenalty(side, id) {
@@ -2972,7 +3073,7 @@
 
   function logToXmlEvent(entry, cfg) {
     if (!entry || !entry.type) return '';
-    if (entry.type === 'faceoff' || entry.type === 'clear') return '';
+    if (entry.type === 'faceoff' || entry.type === 'clear' || entry.type === 'fpsOther') return '';
     const total = periodTimeToElapsed(entry.period, entry.time, cfg);
     const min = Math.floor(total / 60);
     const sec = total % 60;
