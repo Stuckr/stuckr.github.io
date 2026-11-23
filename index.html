@@ -797,6 +797,127 @@
     background: var(--surface);
   }
 
+  /* Settings top-level tabs */
+  .settings-tabs {
+    display: flex;
+    gap: 4px;
+    padding: 10px 14px 0;
+    background: var(--app);
+  }
+  .settings-tab {
+    flex: 1;
+    min-height: 40px;
+    padding: 10px 12px;
+    background: var(--soft-2);
+    color: var(--muted);
+    border: 1px solid var(--line);
+    border-bottom: 0;
+    border-radius: 9px 9px 0 0;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: .4px;
+  }
+  .settings-tab.active {
+    background: var(--app);
+    color: var(--ink);
+    box-shadow: 0 -2px 0 var(--ink) inset;
+  }
+  .settings-panel { display: none; }
+  .settings-panel.active { display: flex; flex-direction: column; gap: 14px; }
+
+  /* Roster editor (Settings) */
+  .roster-tabs { display: flex; gap: 6px; margin-bottom: 10px; }
+  .roster-tabs .fmt-btn { flex: 1; }
+
+  .roster-editor {
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--surface);
+    overflow: hidden;
+  }
+
+  .roster-edit-head {
+    display: grid;
+    grid-template-columns: 54px 56px 1fr;
+    gap: 8px;
+    align-items: center;
+    padding: 7px 10px;
+    border-bottom: 1px solid var(--line);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: .6px;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .roster-edit-row {
+    display: grid;
+    grid-template-columns: 54px 56px 1fr;
+    gap: 8px;
+    align-items: center;
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--line);
+  }
+  .roster-edit-row:last-child { border-bottom: 0; }
+  .roster-edit-row.is-out { opacity: .5; }
+
+  .roster-edit-row .play-cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .roster-edit-row .play-cell input {
+    width: 20px;
+    height: 20px;
+    accent-color: var(--ink);
+  }
+
+  .roster-edit-row .num-cell input {
+    width: 100%;
+    text-align: center;
+    padding: 5px 4px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+  }
+  .roster-edit-row .num-cell input.changed {
+    border-color: var(--red);
+    color: var(--red);
+  }
+
+  .roster-edit-row .name-cell {
+    font-size: 13px;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .roster-edit-row .name-cell .orig-no {
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 700;
+    margin-left: 6px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .roster-bulk {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .roster-note {
+    color: var(--muted);
+    font-size: 11px;
+    margin-top: 8px;
+  }
+  .roster-warn {
+    color: var(--red);
+    font-size: 11px;
+    font-weight: 700;
+    min-height: 14px;
+    margin-top: 6px;
+  }
+
   .lib-game-row {
     display: flex;
     justify-content: space-between;
@@ -971,9 +1092,44 @@
         <span>Touchpad &amp; Rule Settings</span>
         <button class="icon-btn" onclick="closeSettings()">Done</button>
       </div>
+      <div class="settings-tabs">
+        <button class="settings-tab active" id="settingsTabRoster" onclick="setSettingsTab('roster')">Roster</button>
+        <button class="settings-tab" id="settingsTabGame" onclick="setSettingsTab('game')">Game Settings</button>
+      </div>
       <div class="modal-body">
 
-        <div class="setting-section">
+        <div class="settings-panel active" id="settingsPanelRoster">
+        <div class="setting-section" style="padding-top:0;border-top:0">
+          <h4>Game Roster</h4>
+          <div class="roster-tabs">
+            <button class="fmt-btn active" id="rosterTabHome" onclick="setRosterTab('home')">HOME</button>
+            <button class="fmt-btn" id="rosterTabAway" onclick="setRosterTab('away')">AWAY</button>
+          </div>
+          <div class="roster-bulk">
+            <button class="sc-btn" onclick="rosterSetAllPlaying(true)">Select all playing</button>
+            <button class="sc-btn" onclick="rosterSetAllPlaying(false)">Clear all</button>
+            <button class="sc-btn" onclick="rosterResetEdits()">Reset numbers</button>
+          </div>
+          <div class="roster-editor">
+            <div class="roster-edit-head">
+              <span>Play</span>
+              <span>No.</span>
+              <span>Player</span>
+            </div>
+            <div id="rosterEditList"></div>
+          </div>
+          <div class="roster-warn" id="rosterWarn"></div>
+          <div class="roster-note">
+            Changes apply to this game only. Untick a player to leave them out
+            of the input pads; edit the number for a one-off jersey swap. A
+            player's unique ID stays the same, so stats stay tied to the player
+            even when their number changes.
+          </div>
+        </div>
+        </div><!-- /settingsPanelRoster -->
+
+        <div class="settings-panel" id="settingsPanelGame">
+        <div class="setting-section" style="padding-top:0;border-top:0">
           <h4>Environment Theme</h4>
           <div class="setting-row">
             <span>Display Mode</span>
@@ -1032,6 +1188,7 @@
           <h4>Active Event Buttons</h4>
           <div class="toggle-grid" id="eventToggles"></div>
         </div>
+        </div><!-- /settingsPanelGame -->
 
       </div>
     </div>
@@ -2226,8 +2383,8 @@
     return {
       ...g,
       players: {
-        home: players.home.map(p => [p.no, p.name]),
-        away: players.away.map(p => [p.no, p.name])
+        home: players.home.map(p => [p.no, p.name, p.id || '']),
+        away: players.away.map(p => [p.no, p.name, p.id || ''])
       },
       goalies: { home: gh, away: ga },
       events,
@@ -2359,6 +2516,15 @@
     enabledEvents: [...FORMAT_DEFAULTS.sixes.events],
     homeRoster: [1, 3, 4, 7, 9, 11, 12, 14, 17, 19, 22, 24, 27, 33, 44],
     awayRoster: [2, 5, 6, 8, 10, 13, 15, 18, 20, 21, 25, 28, 30, 35, 42],
+    // Per-game roster edits (jersey overrides + who's playing). Each entry:
+    // { origNo, name, no (current/override), active, id }. The active homeRoster /
+    // homePlayers above are derived from these by applyRoster().
+    homeFullRoster: [],
+    awayFullRoster: [],
+    // Jersey number -> stable player ID (original numbering), so a temporary
+    // number swap still exports under the player's own ID.
+    homeIds: {},
+    awayIds: {},
     goalies: { home: 1, away: 30 },
     homeScore: 0,
     awayScore: 0,
@@ -3041,7 +3207,8 @@
   const SAVE_FIELDS = [
     'format','theme','homeColor','awayColor','regPeriods','periodLen','otLen',
     'shotClockMax','currentPeriod','gameSeconds','shotSeconds','running','clockAnchorMs',
-    'secondAssist','enabledEvents','homeRoster','awayRoster','goalies','homeScore','awayScore',
+    'secondAssist','enabledEvents','homeRoster','awayRoster','homeFullRoster','awayFullRoster',
+    'homeIds','awayIds','goalies','homeScore','awayScore',
     'penalties','logs','homeTeam','awayTeam','homePlayers','awayPlayers','gameMeta'
   ];
   let restoring = false;
@@ -3136,6 +3303,173 @@
     if (num === '?' || num == null) return '#?';
     const nm = playerName(side, num);
     return nm ? `#${num} ${nm}` : `#${num}`;
+  }
+
+  // Resolve a (current, possibly temporarily-changed) jersey number to that
+  // player's stable unique ID for the given side. Returns '' when unknown.
+  function playerIdFor(side, num) {
+    if (num === '?' || num == null || num === '') return '';
+    const full = state[fullRosterKey(side)] || [];
+    const hit = full.find(p => Number(p.no) === Number(num));
+    if (hit && hit.id) return String(hit.id);
+    const ids = side === 'home' ? state.homeIds : state.awayIds;   // fallback: original numbering
+    return (ids && ids[num]) ? String(ids[num]) : '';
+  }
+
+  // ---- Per-game roster (jersey overrides + who's playing) ----
+  // The full roster is the source of truth. The active homeRoster/awayRoster
+  // (jersey numbers) and homePlayers/awayPlayers (number -> name) used
+  // everywhere else are derived from it by applyRoster().
+  const fullRosterKey = side => side === 'home' ? 'homeFullRoster' : 'awayFullRoster';
+
+  // Rebuild the full roster from the current active roster + name map. Called
+  // whenever a game is loaded/started/reset so edits start from a clean slate.
+  function rebuildFullRoster(side) {
+    const nums = side === 'home' ? state.homeRoster : state.awayRoster;
+    const map = side === 'home' ? state.homePlayers : state.awayPlayers;
+    const ids = side === 'home' ? state.homeIds : state.awayIds;
+    state[fullRosterKey(side)] = (nums || []).map(n => ({
+      origNo: n,
+      name: (map && map[n]) ? String(map[n]) : '',
+      no: n,
+      active: true,
+      id: (ids && ids[n]) ? String(ids[n]) : ''   // stable player ID — never changes
+    }));
+  }
+
+  // Recompute the active roster number list + name map from the full roster,
+  // then refresh anything that depends on them.
+  function applyRoster(side) {
+    const full = state[fullRosterKey(side)] || [];
+    const active = full.filter(p => p.active);
+    const nums = active.map(p => Number(p.no)).filter(Number.isFinite).sort((a, b) => a - b);
+    const map = {};
+    active.forEach(p => { if (p.name) map[Number(p.no)] = p.name; });
+    if (side === 'home') { state.homeRoster = nums; state.homePlayers = map; }
+    else { state.awayRoster = nums; state.awayPlayers = map; }
+    // Keep the selected goalie valid: if its number is no longer playing,
+    // fall back to the first active number.
+    if (!nums.includes(Number(state.goalies[side]))) {
+      state.goalies[side] = nums.length ? nums[0] : 0;
+    }
+    renderAll();
+    saveGameState();
+  }
+
+  // Make sure both sides have a full roster (older saved games predate it).
+  function ensureFullRosters() {
+    if (!Array.isArray(state.homeFullRoster) || !state.homeFullRoster.length) rebuildFullRoster('home');
+    if (!Array.isArray(state.awayFullRoster) || !state.awayFullRoster.length) rebuildFullRoster('away');
+  }
+
+  // ---- Settings top-level tabs (Roster vs Game Settings) ----
+  function setSettingsTab(tab) {
+    const isRoster = tab === 'roster';
+    document.getElementById('settingsTabRoster').classList.toggle('active', isRoster);
+    document.getElementById('settingsTabGame').classList.toggle('active', !isRoster);
+    document.getElementById('settingsPanelRoster').classList.toggle('active', isRoster);
+    document.getElementById('settingsPanelGame').classList.toggle('active', !isRoster);
+  }
+
+  // ---- Roster editor UI (lives in Settings) ----
+  let rosterTab = 'home';
+
+  function setRosterTab(side) {
+    rosterTab = side;
+    document.getElementById('rosterTabHome').classList.toggle('active', side === 'home');
+    document.getElementById('rosterTabAway').classList.toggle('active', side === 'away');
+    renderRosterEditor();
+  }
+
+  function renderRosterEditor() {
+    ensureFullRosters();
+    const side = rosterTab;
+    const full = state[fullRosterKey(side)] || [];
+    const list = document.getElementById('rosterEditList');
+    if (!list) return;
+    if (!full.length) {
+      list.innerHTML = '<div style="padding:12px;color:var(--muted)">No players on this roster.</div>';
+      renderRosterWarn();
+      return;
+    }
+    // Order by original number so the list is stable while editing.
+    const order = full.map((p, i) => i).sort((a, b) => full[a].origNo - full[b].origNo);
+    list.innerHTML = order.map(i => {
+      const p = full[i];
+      const changed = Number(p.no) !== Number(p.origNo);
+      const nameHtml = p.name
+        ? escapeHtml(p.name)
+        : '<span style="color:var(--muted)">(no name)</span>';
+      const idTag = p.id ? `<span class="orig-no" title="Player ID (kept for stats)">${escapeHtml(p.id)}</span>` : '';
+      const origTag = changed ? `<span class="orig-no" style="color:var(--red)">was #${p.origNo}</span>` : '';
+      return `
+      <div class="roster-edit-row${p.active ? '' : ' is-out'}" data-i="${i}">
+        <div class="play-cell">
+          <input type="checkbox" ${p.active ? 'checked' : ''}
+                 onchange="rosterTogglePlaying(${i}, this.checked)"
+                 aria-label="Toggle playing" />
+        </div>
+        <div class="num-cell">
+          <input type="number" inputmode="numeric" min="0" max="99" value="${p.no}"
+                 class="${changed ? 'changed' : ''}"
+                 onchange="rosterChangeNumber(${i}, this.value)" />
+        </div>
+        <div class="name-cell">${nameHtml}${idTag}${origTag}</div>
+      </div>`;
+    }).join('');
+    renderRosterWarn();
+  }
+
+  // Flag duplicate active numbers (the app keys players by jersey number, so two
+  // playing players must not share one).
+  function renderRosterWarn() {
+    const warn = document.getElementById('rosterWarn');
+    if (!warn) return;
+    const full = state[fullRosterKey(rosterTab)] || [];
+    const seen = {}, dupes = new Set();
+    full.filter(p => p.active).forEach(p => {
+      const n = Number(p.no);
+      if (seen[n]) dupes.add(n); else seen[n] = true;
+    });
+    warn.textContent = dupes.size
+      ? `Two playing players share #${[...dupes].join(', #')} — give them different numbers.`
+      : '';
+  }
+
+  function rosterTogglePlaying(i, checked) {
+    const full = state[fullRosterKey(rosterTab)];
+    if (!full || !full[i]) return;
+    full[i].active = !!checked;
+    applyRoster(rosterTab);
+    renderRosterEditor();
+  }
+
+  function rosterChangeNumber(i, value) {
+    const full = state[fullRosterKey(rosterTab)];
+    if (!full || !full[i]) return;
+    let n = parseInt(value, 10);
+    if (!Number.isFinite(n) || n < 0) n = full[i].origNo;   // bad input -> revert
+    n = Math.min(99, Math.max(0, n));
+    full[i].no = n;
+    applyRoster(rosterTab);
+    renderRosterEditor();
+  }
+
+  function rosterSetAllPlaying(on) {
+    const full = state[fullRosterKey(rosterTab)];
+    if (!full) return;
+    full.forEach(p => { p.active = !!on; });
+    applyRoster(rosterTab);
+    renderRosterEditor();
+  }
+
+  // Revert temporary jersey changes for this side (keeps who's-playing choices).
+  function rosterResetEdits() {
+    const full = state[fullRosterKey(rosterTab)];
+    if (!full) return;
+    full.forEach(p => { p.no = p.origNo; });
+    applyRoster(rosterTab);
+    renderRosterEditor();
   }
 
   function renderPenalties() {
@@ -3251,6 +3585,9 @@
         <span>${ev.label}</span>
       </label>
     `).join("");
+
+    renderRosterEditor();
+    setSettingsTab('roster');   // always open on the Roster tab
 
     document.getElementById("settingsModal").style.display = "flex";
   }
@@ -3600,6 +3937,19 @@
     return map;
   }
 
+  // Map each jersey number to the player's stable unique ID (from the game file
+  // roster, falling back to the league catalogue). Used so a temporary number
+  // change still exports under the player's original ID, keeping stats together.
+  function playerIdMapFromGame(game, side, league, teamCode) {
+    const map = {};
+    const gp = game && game.players && game.players[side];
+    if (Array.isArray(gp)) gp.forEach(p => { if (Array.isArray(p) && p[2]) map[Number(p[0])] = String(p[2]); });
+    if (league && league.rosters && league.rosters[teamCode]) {
+      (league.rosters[teamCode].players || []).forEach(p => { const n = Number(p.no); if (!(n in map) && p.id) map[n] = String(p.id); });
+    }
+    return map;
+  }
+
   function firstValidGoalie(gameGoalie, roster) {
     const g = Number(gameGoalie);
     if (roster.includes(g)) return g;
@@ -3679,10 +4029,15 @@
     state.awayRoster = rosterNumbersFromGame(game, 'away', league, awayCode);
     state.homePlayers = playerMapFromGame(game, 'home', league, homeCode);
     state.awayPlayers = playerMapFromGame(game, 'away', league, awayCode);
+    state.homeIds = playerIdMapFromGame(game, 'home', league, homeCode);
+    state.awayIds = playerIdMapFromGame(game, 'away', league, awayCode);
     state.goalies = {
       home: firstValidGoalie(game.goalies && game.goalies.home, state.homeRoster),
       away: firstValidGoalie(game.goalies && game.goalies.away, state.awayRoster)
     };
+    // Reset per-game roster edits to match the freshly loaded rosters.
+    rebuildFullRoster('home');
+    rebuildFullRoster('away');
 
     state.homeScore = 0;
     state.awayScore = 0;
@@ -3991,6 +4346,7 @@
       let xml;
       if (state.sourceGame && state.sourceGame.xml && /<events>\s*<\/events>/.test(state.sourceGame.xml)) {
         xml = state.sourceGame.xml.replace(/<events>\s*<\/events>/, `<events>${eventsXml}</events>`);
+        xml = applyRosterNumbersToXml(xml);   // reflect temporary jersey changes (ID unchanged)
       } else {
         xml = buildMinimalGameXml(eventsXml);
       }
@@ -4035,20 +4391,27 @@
     const teamCode = entry.side === 'home' ? homeCode : awayCode;
     const t = `<time min="${min}" sec="${sec}"/>`;
 
+    // Player reference builders that stamp the stable ID (resolved from the
+    // current jersey number) so a temporary number change keeps stats together.
+    const pScorer = (side, num) => `<s id="${xmlEsc(playerIdFor(side, num))}" ${pbNo(num)}/>`;
+    const pAssist = (side, num) => `<a id="${xmlEsc(playerIdFor(side, num))}" ${pbNo(num)}/>`;
+    const pRef = (side, num) => pbPlayer(num, playerIdFor(side, num));
+
     if (entry.type === 'goal') {
-      const assists = [entry.assist1, entry.assist2].filter(n => n != null).map(n => `<a id="" ${pbNo(n)}/>`).join('');
-      return `<goal team-id="${xmlEsc(teamCode)}">${t}<s id="" ${pbNo(entry.player)}/>${assists}</goal>`;
+      const assists = [entry.assist1, entry.assist2].filter(n => n != null).map(n => pAssist(entry.side, n)).join('');
+      return `<goal team-id="${xmlEsc(teamCode)}">${t}${pScorer(entry.side, entry.player)}${assists}</goal>`;
     }
     if (entry.type === 'shotSave') {
-      const saveTeam = entry.goalieSide === 'home' ? homeCode : awayCode;
-      return `<shot team-id="${xmlEsc(teamCode)}">${t}${pbPlayer(entry.player)}<type>S</type></shot>` +
-             `<save team-id="${xmlEsc(saveTeam)}">${t}${pbPlayer(entry.goalie)}</save>`;
+      const saveSide = entry.goalieSide === 'home' ? 'home' : 'away';
+      const saveTeam = saveSide === 'home' ? homeCode : awayCode;
+      return `<shot team-id="${xmlEsc(teamCode)}">${t}${pRef(entry.side, entry.player)}<type>S</type></shot>` +
+             `<save team-id="${xmlEsc(saveTeam)}">${t}${pRef(saveSide, entry.goalie)}</save>`;
     }
     if (entry.type === 'shotWide') {
-      return `<shot team-id="${xmlEsc(teamCode)}">${t}${pbPlayer(entry.player)}<type>W</type></shot>`;
+      return `<shot team-id="${xmlEsc(teamCode)}">${t}${pRef(entry.side, entry.player)}<type>W</type></shot>`;
     }
     if (entry.type === 'groundball') {
-      return `<ground-ball team-id="${xmlEsc(teamCode)}">${t}${pbPlayer(entry.player)}</ground-ball>`;
+      return `<ground-ball team-id="${xmlEsc(teamCode)}">${t}${pRef(entry.side, entry.player)}</ground-ball>`;
     }
     if (entry.type === 'faceoff') {
       // Winner = entry.side. Emit both draw-takers (at their own times when known),
@@ -4063,18 +4426,18 @@
       };
       const hT = timeAt(entry.homeFoElapsed);
       const aT = timeAt(entry.awayFoElapsed);
-      return `<faceoff-player team-id="${xmlEsc(homeCode)}">${hT}${pbPlayer(entry.homePlayer)}</faceoff-player>` +
-             `<faceoff-player team-id="${xmlEsc(awayCode)}">${aT}${pbPlayer(entry.awayPlayer)}</faceoff-player>` +
-             `<faceoff team-id="${xmlEsc(teamCode)}">${t}${pbPlayer(winnerNo === '' ? '' : winnerNo)}</faceoff>`;
+      return `<faceoff-player team-id="${xmlEsc(homeCode)}">${hT}${pRef('home', entry.homePlayer)}</faceoff-player>` +
+             `<faceoff-player team-id="${xmlEsc(awayCode)}">${aT}${pRef('away', entry.awayPlayer)}</faceoff-player>` +
+             `<faceoff team-id="${xmlEsc(teamCode)}">${t}${pRef(entry.side, winnerNo === '' ? '' : winnerNo)}</faceoff>`;
     }
     if (entry.type === 'penalty') {
       const length = entry.penLength || (entry.penSec ? Math.round(entry.penSec / 60) : '') || '';
       const category = entry.category || 'Personal';
-      return `<penalty team-id="${xmlEsc(teamCode)}">${t}${pbPlayer(entry.player)}` +
+      return `<penalty team-id="${xmlEsc(teamCode)}">${t}${pRef(entry.side, entry.player)}` +
              `<length>${xmlEsc(String(length))}</length><category>${xmlEsc(category)}</category><description>${xmlEsc(entry.offense || '')}</description></penalty>`;
     }
     if (entry.type === 'goalieChange') {
-      return `<goalie-change team-id="${xmlEsc(teamCode)}">${t}${pbPlayer(entry.player)}</goalie-change>`;
+      return `<goalie-change team-id="${xmlEsc(teamCode)}">${t}${pRef(entry.side, entry.player)}</goalie-change>`;
     }
     if (entry.type === 'timeout') {
       return `<timeout team-id="${xmlEsc(teamCode)}">${t}</timeout>`;
@@ -4110,6 +4473,31 @@
       `<events>${eventsXml}</events></game>`;
   }
 
+  // Rewrite the roster <player> numbers in the source game XML to match any
+  // temporary jersey changes, matched by the stable player ID so identity (and
+  // therefore stat continuity) is preserved. Players whose ID we don't track
+  // are left exactly as they were in the source file.
+  function applyRosterNumbersToXml(xml) {
+    // Build: stable player ID -> current number (as a string, '' = no number).
+    const byId = {};
+    ['home', 'away'].forEach(side => {
+      (state[fullRosterKey(side)] || []).forEach(p => {
+        if (p.id) byId[String(p.id)] = (p.no === '' || p.no == null) ? '' : String(p.no);
+      });
+    });
+    if (!Object.keys(byId).length) return xml;
+    // For each <player id="..."> ... </player> block, rewrite its <no>...</no>
+    // (or empty <no/>) when we have a current number for that ID.
+    return xml.replace(/<player\b[^>]*\bid="([^"]*)"[^>]*>[\s\S]*?<\/player>/g, (block, id) => {
+      if (!(id in byId)) return block;
+      const noVal = byId[id];
+      const noXml = noVal === '' ? '<no/>' : `<no>${xmlEsc(noVal)}</no>`;
+      if (/<no\s*\/>/.test(block)) return block.replace(/<no\s*\/>/, noXml);
+      if (/<no>[\s\S]*?<\/no>/.test(block)) return block.replace(/<no>[\s\S]*?<\/no>/, noXml);
+      return block;   // no <no> element present — leave the block untouched
+    });
+  }
+
   function newBlankGame() {
     clearGameState();
     state.homeScore = 0; state.awayScore = 0;
@@ -4120,9 +4508,12 @@
     state.gameMeta = null; state.sourceGame = null;
     state.homeTeam = 'HOME'; state.awayTeam = 'AWAY';
     state.homePlayers = {}; state.awayPlayers = {};
+    state.homeIds = {}; state.awayIds = {};
     state.homeRoster = [1,3,4,7,9,11,12,14,17,19,22,24,27,33,44];
     state.awayRoster = [2,5,6,8,10,13,15,18,20,21,25,28,30,35,42];
     state.goalies = { home: 1, away: 30 };
+    rebuildFullRoster('home');
+    rebuildFullRoster('away');
     applyClockReset();
     renderAll();
     saveGameState();
@@ -4133,6 +4524,7 @@
   setTheme("light");
   // Restore an in-progress game if one was saved (survives refresh/crash).
   const restored = restoreGameState();
+  ensureFullRosters();   // backfill roster edits model for games saved before it existed
   renderAll();
   if (restored) updateClockButton();
 
