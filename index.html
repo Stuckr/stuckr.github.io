@@ -106,6 +106,17 @@
     gap: 4px;
   }
 
+  .save-status {
+    margin-left: auto;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 40vw;
+  }
+
   .fmt-btn {
     min-height: 34px;
     padding: 6px 12px;
@@ -1021,6 +1032,8 @@
       <button class="fmt-btn" data-fmt="box" onclick="setFormat('box')">BOX</button>
       <button class="fmt-btn" data-fmt="field" onclick="setFormat('field')">FIELD</button>
     </div>
+    <span class="save-status" id="saveStatus"></span>
+    <button class="icon-btn" onclick="saveBackToGameFile()" title="Save the current game back to its file">&#128190; Save</button>
     <button class="icon-btn" onclick="openSettings()">&#9881; Settings</button>
     <button class="icon-btn" onclick="openLibrary()">&#128193; Games</button>
   </div>
@@ -1094,7 +1107,8 @@
       </div>
       <div class="settings-tabs">
         <button class="settings-tab active" id="settingsTabRoster" onclick="setSettingsTab('roster')">Roster</button>
-        <button class="settings-tab" id="settingsTabGame" onclick="setSettingsTab('game')">Game Settings</button>
+        <button class="settings-tab" id="settingsTabRefs" onclick="setSettingsTab('refs')">Referees</button>
+        <button class="settings-tab" id="settingsTabGame" onclick="setSettingsTab('game')">Game Environment</button>
       </div>
       <div class="modal-body">
 
@@ -1127,6 +1141,32 @@
           </div>
         </div>
         </div><!-- /settingsPanelRoster -->
+
+        <div class="settings-panel" id="settingsPanelRefs">
+        <div class="setting-section" style="padding-top:0;border-top:0">
+          <h4>Match Officials</h4>
+          <div class="setting-row">
+            <span>Head Referee</span>
+            <select id="refHead" onchange="setRef('head', this.value)" style="min-width:200px"></select>
+          </div>
+          <div class="setting-row">
+            <span>Referee 2</span>
+            <select id="refRef2" onchange="setRef('ref2', this.value)" style="min-width:200px"></select>
+          </div>
+          <div class="setting-row">
+            <span>Referee 3</span>
+            <select id="refRef3" onchange="setRef('ref3', this.value)" style="min-width:200px"></select>
+          </div>
+          <div class="setting-row">
+            <span>Table Referee</span>
+            <select id="refTable" onchange="setRef('table', this.value)" style="min-width:200px"></select>
+          </div>
+          <div class="roster-note" id="refNote">
+            Officials come from the game folder's official-list.xml. If that file
+            isn't present the dropdowns stay blank.
+          </div>
+        </div>
+        </div><!-- /settingsPanelRefs -->
 
         <div class="settings-panel" id="settingsPanelGame">
         <div class="setting-section" style="padding-top:0;border-top:0">
@@ -1255,6 +1295,7 @@
             <h4>XML</h4>
             <div class="lib-actions">
               <button class="sc-btn" onclick="document.getElementById('libFile').click()">Open game XML…</button>
+              <button class="sc-btn sc-btn-primary" onclick="saveBackToGameFile()">Save to game file</button>
               <button class="sc-btn" onclick="exportGameXml()">Export current game as XML</button>
               <input type="file" id="libFile" accept=".xml,text/xml,application/xml" style="display:none" onchange="loadXmlFile(event)" />
             </div>
@@ -1769,6 +1810,38 @@
       loadedLeagueKey = `${league.area}|${league.id}|${league.year}`;
       return true;
     } catch (_) { return false; }
+  }
+
+  // Parse officials from an official-list.xml. Accepts <official> blocks with
+  // first-name/last-name or a full-name. Returns [{ id, name }] (named only).
+  function parseOfficialList(xml) {
+    return syncBlocks(xml, 'official').map(o => {
+      const full = syncTag(o, 'full-name');
+      const first = syncTag(o, 'first-name');
+      const last = syncTag(o, 'last-name');
+      const name = syncCleanXml(full || [first, last].filter(Boolean).join(' ')).trim();
+      return { id: syncAttr(o, 'official', 'id') || '', name };
+    }).filter(o => o.name);
+  }
+
+  // Find and read the *official-list.xml from a game's folder, returning the
+  // parsed officials. Silent on any failure (missing file, no folder, etc.) —
+  // returns [] so the Referee dropdowns simply stay blank, no error shown.
+  async function loadOfficialsForGame(league, game) {
+    try {
+      if (!league) return [];
+      const dir = await getLeagueDirHandle(league, { prompt: false });
+      if (!dir) return [];
+      let fname = '';
+      for await (const [name, handle] of dir.entries()) {
+        if (handle.kind === 'file' && /official-list\.xml$/i.test(name)) { fname = name; break; }
+      }
+      if (!fname) return [];
+      const xml = await readFileFromDir(dir, fname);
+      return parseOfficialList(xml);
+    } catch (_) {
+      return [];
+    }
   }
 
   // Ensure the data root with WRITE access (used by Sync to save league files).
@@ -2536,7 +2609,11 @@
     homePlayers: {},
     awayPlayers: {},
     gameMeta: null,
-    sourceGame: null
+    sourceGame: null,
+    // Match officials: list of available refs for this game (from the game
+    // directory's *official-list.xml) and the four assigned roles.
+    refOfficials: [],              // [{ id, name }]
+    refs: { head: '', ref2: '', ref3: '', table: '' }   // selected official ids (or names)
   };
 
   function hexMix(a, b, w) {
@@ -3209,7 +3286,8 @@
     'shotClockMax','currentPeriod','gameSeconds','shotSeconds','running','clockAnchorMs',
     'secondAssist','enabledEvents','homeRoster','awayRoster','homeFullRoster','awayFullRoster',
     'homeIds','awayIds','goalies','homeScore','awayScore',
-    'penalties','logs','homeTeam','awayTeam','homePlayers','awayPlayers','gameMeta'
+    'penalties','logs','homeTeam','awayTeam','homePlayers','awayPlayers','gameMeta',
+    'refOfficials','refs'
   ];
   let restoring = false;
 
@@ -3362,13 +3440,43 @@
     if (!Array.isArray(state.awayFullRoster) || !state.awayFullRoster.length) rebuildFullRoster('away');
   }
 
-  // ---- Settings top-level tabs (Roster vs Game Settings) ----
+  // ---- Settings top-level tabs (Roster / Referees / Game Environment) ----
   function setSettingsTab(tab) {
-    const isRoster = tab === 'roster';
-    document.getElementById('settingsTabRoster').classList.toggle('active', isRoster);
-    document.getElementById('settingsTabGame').classList.toggle('active', !isRoster);
-    document.getElementById('settingsPanelRoster').classList.toggle('active', isRoster);
-    document.getElementById('settingsPanelGame').classList.toggle('active', !isRoster);
+    const tabs = { roster: 'settingsTabRoster', refs: 'settingsTabRefs', game: 'settingsTabGame' };
+    const panels = { roster: 'settingsPanelRoster', refs: 'settingsPanelRefs', game: 'settingsPanelGame' };
+    Object.keys(tabs).forEach(k => {
+      document.getElementById(tabs[k]).classList.toggle('active', k === tab);
+      document.getElementById(panels[k]).classList.toggle('active', k === tab);
+    });
+    if (tab === 'refs') renderRefereeTab();
+  }
+
+  // ---- Referee tab ----
+  function refKey(o) { return o.id || o.name; }
+
+  function renderRefereeTab() {
+    const roles = [['head', 'refHead'], ['ref2', 'refRef2'], ['ref3', 'refRef3'], ['table', 'refTable']];
+    const officials = state.refOfficials || [];
+    roles.forEach(([role, id]) => {
+      const sel = document.getElementById(id);
+      if (!sel) return;
+      const current = (state.refs && state.refs[role]) || '';
+      const opts = ['<option value="">— none —</option>']
+        .concat(officials.map(o => {
+          const v = refKey(o);
+          return `<option value="${escapeHtml(v)}" ${v === current ? 'selected' : ''}>${escapeHtml(o.name)}</option>`;
+        }));
+      if (current && !officials.some(o => refKey(o) === current)) {
+        opts.push(`<option value="${escapeHtml(current)}" selected>${escapeHtml(current)}</option>`);
+      }
+      sel.innerHTML = opts.join('');
+    });
+  }
+
+  function setRef(role, value) {
+    if (!state.refs) state.refs = { head: '', ref2: '', ref3: '', table: '' };
+    state.refs[role] = value || '';
+    saveGameState();
   }
 
   // ---- Roster editor UI (lives in Settings) ----
@@ -3587,6 +3695,7 @@
     `).join("");
 
     renderRosterEditor();
+    renderRefereeTab();
     setSettingsTab('roster');   // always open on the Roster tab
 
     document.getElementById("settingsModal").style.display = "flex";
@@ -3594,6 +3703,11 @@
 
   function closeSettings() {
     document.getElementById("settingsModal").style.display = "none";
+    // Save settings/roster/referee changes back to the game file on the way out.
+    // Only when this game came from a file; a blank/new game is left alone.
+    if (state.sourceGame && state.sourceGame.file) {
+      saveBackToGameFile();
+    }
   }
 
   function toggleEventBtn(id, enabled) {
@@ -3878,6 +3992,23 @@
       }
     }
     applyGameData(league, game, !!blank);
+    // Load match officials from the game folder's *official-list.xml (silent if
+    // none). Pre-select the first four into the ref roles as a sensible default.
+    try {
+      const officials = await loadOfficialsForGame(league, game);
+      if (officials && officials.length) {
+        state.refOfficials = officials;
+        const key = o => o.id || o.name;
+        state.refs = {
+          head:  officials[0] ? key(officials[0]) : '',
+          ref2:  officials[1] ? key(officials[1]) : '',
+          ref3:  officials[2] ? key(officials[2]) : '',
+          table: officials[3] ? key(officials[3]) : ''
+        };
+        renderRefereeTab();
+        saveGameState();
+      }
+    } catch (_) { /* no officials — leave blanks, no error */ }
   }
 
   function newGameFromLibrary() {
@@ -4038,6 +4169,10 @@
     // Reset per-game roster edits to match the freshly loaded rosters.
     rebuildFullRoster('home');
     rebuildFullRoster('away');
+    // Clear match officials; the folder's official-list.xml (if any) is loaded
+    // asynchronously right after by loadCatalogueGame.
+    state.refOfficials = [];
+    state.refs = { head: '', ref2: '', ref3: '', table: '' };
 
     state.homeScore = 0;
     state.awayScore = 0;
@@ -4339,17 +4474,56 @@
     reader.readAsText(file);
   }
 
+  // Resolve a selected ref key (id or name) to a display name via refOfficials.
+  function refNameFor(keyVal) {
+    if (!keyVal) return '';
+    const o = (state.refOfficials || []).find(x => (x.id || x.name) === keyVal);
+    return o ? o.name : String(keyVal);   // fall back to the raw value (may be a name)
+  }
+
+  // Write the four selected referees into the <summary>'s <referee> slots, in
+  // order: Head, Referee 2, Referee 3, Table. Only existing <referee> elements
+  // are touched; if the summary has none, the XML is returned unchanged.
+  function applyRefereesToXml(xml) {
+    const names = [
+      refNameFor(state.refs && state.refs.head),
+      refNameFor(state.refs && state.refs.ref2),
+      refNameFor(state.refs && state.refs.ref3),
+      refNameFor(state.refs && state.refs.table)
+    ];
+    if (!names.some(Boolean)) return xml;   // nothing selected — leave as-is
+    let i = 0;
+    return xml.replace(/<referee\b[^>]*>[\s\S]*?<\/referee>/g, block => {
+      if (i >= names.length) return block;
+      const name = names[i++];
+      if (!name) return block;   // leave that slot untouched when unassigned
+      const fn = `<full-name>${xmlEsc(name)}</full-name>`;
+      if (/<full-name\s*\/>/.test(block)) return block.replace(/<full-name\s*\/>/, fn);
+      if (/<full-name>[\s\S]*?<\/full-name>/.test(block)) return block.replace(/<full-name>[\s\S]*?<\/full-name>/, fn);
+      return block.replace(/(<referee\b[^>]*>)/, `$1${fn}`);
+    });
+  }
+
+  // Build the full game XML for the current state: events + temporary roster
+  // numbers (IDs preserved) + selected referees, woven into the source file
+  // when present, else a minimal document.
+  function buildExportXml() {
+    const cfg = { regPeriods: state.regPeriods, periodLen: state.periodLen, otLen: state.otLen };
+    const eventsXml = state.logs.map(entry => logToXmlEvent(entry, cfg)).filter(Boolean).join('');
+    let xml;
+    if (state.sourceGame && state.sourceGame.xml && /<events>\s*<\/events>/.test(state.sourceGame.xml)) {
+      xml = state.sourceGame.xml.replace(/<events>\s*<\/events>/, `<events>${eventsXml}</events>`);
+      xml = applyRosterNumbersToXml(xml);   // reflect temporary jersey changes (ID unchanged)
+      xml = applyRefereesToXml(xml);        // write selected match officials into the summary
+    } else {
+      xml = buildMinimalGameXml(eventsXml);
+    }
+    return xml;
+  }
+
   function exportGameXml() {
     try {
-      const cfg = { regPeriods: state.regPeriods, periodLen: state.periodLen, otLen: state.otLen };
-      const eventsXml = state.logs.map(entry => logToXmlEvent(entry, cfg)).filter(Boolean).join('');
-      let xml;
-      if (state.sourceGame && state.sourceGame.xml && /<events>\s*<\/events>/.test(state.sourceGame.xml)) {
-        xml = state.sourceGame.xml.replace(/<events>\s*<\/events>/, `<events>${eventsXml}</events>`);
-        xml = applyRosterNumbersToXml(xml);   // reflect temporary jersey changes (ID unchanged)
-      } else {
-        xml = buildMinimalGameXml(eventsXml);
-      }
+      const xml = buildExportXml();
       const blob = new Blob([xml], { type: 'application/xml' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -4365,6 +4539,51 @@
     } catch (err) {
       const libStatus = document.getElementById('libStatus');
       if (libStatus) libStatus.textContent = 'Export failed: ' + (err && err.message ? err.message : String(err));
+    }
+  }
+
+  // Save the current game straight back to its original *-game-NNN.xml in the
+  // data folder, overwriting in place. Needs the game to have come from disk
+  // (a source file name) and write permission to the data folder. Returns a
+  // short status string (also shown on-screen) so the top-bar button and the
+  // Settings "Done" button can report the result.
+  async function saveBackToGameFile(opts) {
+    const quiet = opts && opts.quiet;
+    const libStatus = document.getElementById('libStatus');
+    const topStatus = document.getElementById('saveStatus');
+    const report = msg => {
+      if (libStatus) libStatus.textContent = msg;
+      if (topStatus) { topStatus.textContent = msg; clearTimeout(report._t); report._t = setTimeout(() => { topStatus.textContent = ''; }, 4000); }
+    };
+    try {
+      const fileName = state.sourceGame && state.sourceGame.file;
+      if (!fileName) {
+        // No original file (blank/new game). Stay silent on an auto-save (Done),
+        // but tell the user if they pressed Save explicitly.
+        if (!quiet) report('No source game file — use “Export current game as XML” instead.');
+        return false;
+      }
+      const leagueId = state.gameMeta && state.gameMeta.leagueId;
+      const league = (leagueId && activeLeagues().find(l => l.id === leagueId)) || getSelectedLeague();
+      if (!league) { if (!quiet) report('Could not find the league folder for this game.'); return false; }
+
+      const root = await ensureWritableDataRoot({ prompt: !quiet });
+      if (!root) { if (!quiet) report('Write access to the data folder was not granted.'); return false; }
+
+      const dir = await getOrCreateDir(root, leagueFolderPath(league));
+      const xml = buildExportXml();
+      const fh = await dir.getFileHandle(fileName, { create: true });
+      const writable = await fh.createWritable();
+      await writable.write(xml);
+      await writable.close();
+
+      // Keep the in-memory source XML in step so a later save/export builds on it.
+      if (state.sourceGame) state.sourceGame.xml = xml.replace(/<events>[\s\S]*?<\/events>/, '<events></events>');
+      report(`Saved to ${fileName} (${state.logs.length} events).`);
+      return true;
+    } catch (err) {
+      if (!quiet) report('Save failed: ' + (err && err.message ? err.message : String(err)));
+      return false;
     }
   }
 
@@ -4512,6 +4731,8 @@
     state.homeRoster = [1,3,4,7,9,11,12,14,17,19,22,24,27,33,44];
     state.awayRoster = [2,5,6,8,10,13,15,18,20,21,25,28,30,35,42];
     state.goalies = { home: 1, away: 30 };
+    state.refOfficials = [];
+    state.refs = { head: '', ref2: '', ref3: '', table: '' };
     rebuildFullRoster('home');
     rebuildFullRoster('away');
     applyClockReset();
@@ -4525,6 +4746,8 @@
   // Restore an in-progress game if one was saved (survives refresh/crash).
   const restored = restoreGameState();
   ensureFullRosters();   // backfill roster edits model for games saved before it existed
+  if (!Array.isArray(state.refOfficials)) state.refOfficials = [];
+  if (!state.refs) state.refs = { head: '', ref2: '', ref3: '', table: '' };
   renderAll();
   if (restored) updateClockButton();
 
